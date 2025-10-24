@@ -13,9 +13,15 @@ export class RecordController {
   constructor(private readonly recordService: RecordService) {}
 
   @Get()
-  async findAll(@Req() req: CustomRequest, @Res() res: Response, @Query() queryParams: FetchRecordDto) {
+  async findRecords(@Req() req: CustomRequest, @Res() res: Response, @Query() queryParams: FetchRecordDto) {
     const users = await this.recordService.findRecords(req, queryParams);
     return CustomResponse(res, 200, 'Records successfully retrieved', users, req.pagination);
+  }
+
+   @Get('sources')
+  async findSources(@Res() res: Response) {
+    const sources = await this.recordService.findSources();
+    return CustomResponse(res, 200, 'Sources successfully retrieved', sources, null);
   }
 
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT, {

@@ -14,12 +14,14 @@ import { JsonData, JsonDataDocument } from './entities/json-data.entity';
 import { InjesterEngineCore } from 'src/infra/core/injester-engine.core';
 import { PaginationParamsSetup } from 'src/infra/dto/pagination-params.dto';
 import { JsonCatalog, JsonCatalogDocument } from './entities/json-catalog.entity';
+import { RecordFilterBuilder } from './helpers/record-filter.builder';
 
 @Injectable()
 export class RecordService extends BaseService<JsonData> {
   private readonly ajv = new Ajv({ allErrors: true, coerceTypes: false,  allowUnionTypes: true, });
   private AUTO_WIDEN_ON_TYPE_ERRORS = Env.PORT
   private SOURCE_URLS = Env.SOURCE_URLS
+  private readonly filterBuilder: RecordFilterBuilder;
 
   constructor(
     @InjectModel(JsonData.name)
@@ -31,27 +33,57 @@ export class RecordService extends BaseService<JsonData> {
     private readonly http: HttpService,
   ) {
     super(jsonDataModel as any);
+    this.filterBuilder = new RecordFilterBuilder(this.jsonCatalogModel);
   }
 
-  async findRecords(req: CustomRequest, queryParams: FetchRecordDto) {
-    const query: any = {
-      isDeleted: false,
-      ...(queryParams.status && { status: queryParams.status }),
-      ...(queryParams.searchTerm && {
-        $or: [{ firstName: { $regex: queryParams.searchTerm, $options: 'i' } }, { lastName: { $regex: queryParams.searchTerm, $options: 'i' } }],
-      }),
-    };
+   async findSources(): Promise<string[]> {
+    return await this.jsonCatalogModel.distinct('source');
+  }
 
-    const totalDocumentCount = await this.jsonDataModel.countDocuments(query);
-    PaginationParamsSetup(req, totalDocumentCount);
+  async findRecords(req: CustomRequest, params: FetchRecordDto) {
+    const filter = await this.filterBuilder.buildMongoFilter(req.query as any);
 
-    const users = await this.jsonDataModel
-      .find(query)
-      .sort({ createdAt: -1 })
-      .skip((req.pagination.currentPage - 1) * req.pagination.perPage)
-      .limit(req.pagination.perPage);
+    // Sorting (default newest first)
+    const sortField =
+      params.sortBy && params.sortBy !== 'ingestedAt'
+        ? `normalizedPayload.${params.sortBy}`
+        : 'ingestedAt';
+    const sortDir: 1 | -1 = (params.sortDir ?? 'desc') === 'asc' ? 1 : -1;
+    const sort: Record<string, 1 | -1> = { [sortField]: sortDir };
 
-    return users;
+    // Projection
+    let projection: any | undefined;
+    if (params.fields) {
+      projection = params.fields
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean)
+        .reduce((acc, key) => {
+          if (['ingestedAt', '_id', 'source', 'catalogVersion'].includes(key)) acc[key] = 1;
+          else acc[`normalizedPayload.${key}`] = 1;
+          return acc;
+        }, {} as any);
+      projection._id = 0;
+      projection.source = 1;
+      projection.catalogVersion = 1;
+      projection.ingestedAt = 1;
+    }
+
+    // Pagination
+    const page = Math.max(1, Number(params.page ?? 1));
+    const perPage = Math.min(200, Math.max(1, Number(params.perPage ?? 50)));
+
+    const total = await this.jsonDataModel.countDocuments(filter);
+    PaginationParamsSetup(req, total); 
+
+    const data = await this.jsonDataModel
+      .find(filter, projection)
+      .sort(sort)
+      .skip((page - 1) * perPage)
+      .limit(perPage)
+      .lean();
+
+    return { page, perPage, total, data };
   }
 
   async syncRecords(): Promise<Record<string, { processed: number; failed: number }>> {
