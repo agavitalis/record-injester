@@ -1,0 +1,27 @@
+FROM node:24
+
+WORKDIR /injester-service
+
+# Copy package files
+COPY package*.json yarn.lock ./
+
+# Install all dependencies (needed for build)
+RUN yarn install
+
+# Copy source code
+COPY . .
+
+# Build the application
+RUN yarn build
+
+#Remove dev dependencies to reduce image size
+RUN yarn install --production --frozen-lockfile
+
+# Expose port
+EXPOSE 7100
+
+# Set environment
+ENV NODE_ENV=staging
+
+# Use direct node execution for better performance
+CMD ["yarn", "start:prod"]

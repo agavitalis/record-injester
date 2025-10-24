@@ -4,10 +4,7 @@ import { BaseEntity } from 'src/infra/entities/base.entity';
 
 export type JsonDataDocument = HydratedDocument<JsonData>;
 
-@Schema({
-  collection: 'records',
-  timestamps: { createdAt: 'ingestedAt', updatedAt: false },
-})
+@Schema({ timestamps: true })
 export class JsonData extends BaseEntity{
   @Prop({ required: true, index: true })
   source: string;

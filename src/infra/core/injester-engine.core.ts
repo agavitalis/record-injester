@@ -7,7 +7,7 @@ import { JsonData, JsonDataDocument } from 'src/record/entities/json-data.entity
 export type IndexPolicy = Array<{ keys: Record<string, 1 | -1>; opts?: Record<string, any> }>;
 
 @Injectable()
-export class InjesterEngineService {
+export class InjesterEngineCore {
   constructor(
     @InjectModel(JsonCatalog.name)
     private readonly jsonCatalogModel: Model<JsonCatalogDocument>,
@@ -20,17 +20,17 @@ export class InjesterEngineService {
     return this.jsonCatalogModel.findOne({ source }).sort({ version: -1 }).lean();
   }
 
-   // ---------- Get source name from file name lookups ----------
+  // ---------- Get source name from file name lookups ----------
 
   async getSourceFromUrl(url: string): Promise<string> {
-  try {
-    const u = new URL(url);
-    const file = u.pathname.split('/').pop() || 'source';
-    return file.replace(/\.json$/i, '');
-  } catch {
-    return 'source';
+    try {
+      const u = new URL(url);
+      const file = u.pathname.split('/').pop() || 'source';
+      return file.replace(/\.json$/i, '');
+    } catch {
+      return 'source';
+    }
   }
-}
 
   // ---------- Initial catalog (auto-create) ----------
   async autoCreateInitialCatalog(source: string, samplePayload: Record<string, any>) {
@@ -117,7 +117,7 @@ export class InjesterEngineService {
     }
   }
 
-    // ---------- Widen Schema Types on type errors ----------
+  // ---------- Widen Schema Types on type errors ----------
   async widenSchemaFromTypeErrors(jsonSchema: any, ajvTypeErrors: any[]) {
     const schema = JSON.parse(JSON.stringify(jsonSchema || {})); // deep clone
     if (!schema.type) schema.type = 'object';

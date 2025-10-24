@@ -5,7 +5,7 @@ import { BaseEntity } from 'src/infra/entities/base.entity';
 
 export type JsonCatalogDocument = HydratedDocument<JsonCatalog>;
 
-@Schema({ collection: 'JsonCatalogs', timestamps: true })
+@Schema({ timestamps: true })
 export class JsonCatalog extends BaseEntity {
   @Prop({ required: true, index: true })
   source: string;

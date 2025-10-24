@@ -1,38 +1,152 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+## 🧩 JSON Data Ingestion & Unified Query Service
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A scalable, schema-adaptive backend built with **NestJS** and
+**MongoDB** for ingesting, versioning, and querying large external JSON
+datasets from multiple sources.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://coveralls.io/github/nestjs/nest?branch=master" target="_blank"><img src="https://coveralls.io/repos/github/nestjs/nest/badge.svg?branch=master#9" alt="Coverage" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+------------------------------------------------------------------------
 
-## Description
+## 🚀 Overview
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+This service ingests multiple external datasets stored in **AWS S3**,
+normalizes them into a unified schema, and exposes a single query API
+with full attribute-based filtering.
 
-## Project setup
+It's designed for **dynamic JSON sources** whose structures may evolve
+over time --- automatically tracking schema changes and adjusting
+indexes without manual migrations.
 
-```bash
-$ npm install
+------------------------------------------------------------------------
+
+## 🧱 Core Architecture
+
+### **1. Data Ingestion & Schema Evolution**
+
+-   **Dynamic ingestion pipeline** that streams large S3 JSON files (1
+    KB -- 1 GB) using `@nestjs/axios` and `stream-json`.
+-   **Schema evolution tracking** via a `JsonCatalog` collection that
+    stores each source's:
+    -   JSON schema (AJV-compatible)
+    -   Field-to-path mappings (`jsonMap`)
+    -   Index policy for optimized querying
+-   **Auto-versioning:** New catalog versions are created automatically
+    when new fields or type changes are detected.
+
+### **2. Unified Record Storage**
+
+-   All data from different sources are stored in a single `records`
+    collection (`JsonData` model).
+-   Each record includes:
+    -   `source` → dataset origin\
+    -   `catalogVersion` → schema version reference\
+    -   `originalPayload` → full unaltered JSON\
+    -   `normalizedPayload` → flattened, query-ready projection
+
+### **3. Query & Filtering API**
+
+-   A single endpoint returns data from **all ingested sources** with
+    support for:
+    -   Attribute filtering (city, country, price, etc.)
+    -   Partial text search
+    -   Numeric range filtering
+-   Built on indexed `normalizedPayload` fields for fast lookups.
+
+------------------------------------------------------------------------
+
+## 🧩 Data Model Summary
+
+### **JsonCatalog**
+
+  Field           Description
+  --------------- -----------------------------------------------------------
+  `source`        Unique name of dataset (e.g. `structured_generated_data`)
+  `version`       Auto-incremented schema version
+  `jsonSchema`    AJV-compatible schema describing payload shape
+  `jsonMap`       Map of normalized names → JSONPaths
+  `indexPolicy`   Declarative index specs applied to `records`
+
+### **JsonData**
+
+  Field                 Description
+  --------------------- -----------------------------------------------
+  `source`              Source name
+  `catalogVersion`      Version of schema used for ingestion
+  `originalPayload`     Full JSON object as received
+  `normalizedPayload`   Flat projection used for filtering & indexing
+
+------------------------------------------------------------------------
+
+## 🧠 Intelligent Schema Management
+
+-   **Type drift detection:** If a field changes from `number` →
+    `string`, the system widens the schema (`["number", "string"]`) and
+    publishes a new version automatically.\
+-   **Field addition:** Unknown fields trigger creation of new schema
+    versions with updated `jsonMap` and sparse indexes.
+-   **Backward compatibility:** Older data remain queryable under their
+    recorded schema version.
+
+------------------------------------------------------------------------
+
+## 🌐 S3 Sources
+
+The system automatically consumes the provided datasets:
+
+``` ts
+[
+  "https://buenro-tech-assessment-materials.s3.eu-north-1.amazonaws.com/structured_generated_data.json",
+  "https://buenro-tech-assessment-materials.s3.eu-north-1.amazonaws.com/large_generated_data.json"
+]
 ```
 
-## Compile and run the project
+Each file is streamed sequentially and ingested via the `syncRecords()`
+function, ensuring constant memory usage.
+
+------------------------------------------------------------------------
+
+## 🧩 Technologies
+
+  Layer              Tech Stack
+  ------------------ -----------------------------------
+  Framework          **NestJS (TypeScript)**
+  Database           **MongoDB**
+  HTTP Client        **@nestjs/axios** (Axios wrapper)
+  JSON Streaming     **stream-json**
+  Validation         **AJV**
+  Containerization   Docker-ready
+  Testing            Jest (optional)
+
+------------------------------------------------------------------------
+
+## 🔍 Example API
+
+### **Sync JSON Sources**
+
+``` bash
+POST /records/sync
+```
+
+Triggers ingestion of all configured source URLs.
+
+### **Query Records**
+
+``` bash
+GET /records?city=Paris&priceForNight[gte]=500&availability=true
+```
+
+Fetches normalized data from all datasets with attribute filters.
+
+------------------------------------------------------------------------
+
+## ⚙️ Running Locally
+
+## Installation
+
+```bash
+$ npm install --legacy-peer-deps  
+```
+
+## Running the app
 
 ```bash
 # development
@@ -45,7 +159,7 @@ $ npm run start:dev
 $ npm run start:prod
 ```
 
-## Run tests
+## Test
 
 ```bash
 # unit tests
@@ -58,28 +172,70 @@ $ npm run test:e2e
 $ npm run test:cov
 ```
 
-## Resources
+------------------------------------------------------------------------
 
-Check out a few resources that may come in handy when working with NestJS:
+## 📈 Scalability & Extensibility
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+  -----------------------------------------------------------------------
+  Concern                           Approach
+  --------------------------------- -------------------------------------
+  **Large files (up to 1 GB)**      Streamed ingestion avoids loading
+                                    into memory
 
-## Support
+  **New data sources**              Add URL → system detects and versions
+                                    schema automatically
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+  **Schema changes**                Auto-versioning keeps track of
+                                    differences
 
-## Stay in touch
+  **Filtering performance**         Declarative `indexPolicy` ensures
+                                    indexed queries
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+  **Type drift**                    Automatically widens schema (`number`
+                                    ↔ `string`)
+  -----------------------------------------------------------------------
 
-## License
+------------------------------------------------------------------------
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+## 🧩 How to Extend
+
+To support a new JSON dataset: 1. Add the new S3 URL to the
+`SOURCE_URLS` array. 2. Run `syncRecords()` (or hit `/records/sync`). 3.
+The service automatically: - Creates an initial catalog for the new
+source, - Detects structure and generates indexes, - Begins ingesting
+data under the correct schema version.
+
+------------------------------------------------------------------------
+
+## 🧭 Key Evaluation Goals
+
+✅ **Architecture:** Modular NestJS design with schema registry and
+streaming ingestion\
+✅ **Data Modeling:** Versioned catalogs and unified records\
+✅ **Performance:** Streamed ingestion + sparse indexes\
+✅ **Code Quality:** Clean, documented, and extensible\
+✅ **Filtering Logic:** Attribute-based, type-safe querying
+
+------------------------------------------------------------------------
+
+## 📦 Directory Structure
+
+    src/
+    ├── core/
+    │   └── catalog-engine.service.ts
+    ├── modules/
+    │   └── records/
+    │       ├── entities/
+    │       │   ├── json-catalog.entity.ts
+    │       │   └── json-data.entity.ts
+    │       ├── record.service.ts
+    │       └── record.controller.ts
+    └── main.ts
+
+------------------------------------------------------------------------
+
+## 🧑‍💻 Author
+
+**Vitalis Ogbonna**\
+Senior Software & DevOps Engineer\
+*Tech Assessment --- Senior Backend Role*
