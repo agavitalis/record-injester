@@ -11,8 +11,12 @@ async function bootstrap() {
     credentials: true,
   });
 
-  app.setGlobalPrefix('api/v1', {
-    exclude: [{ path: '/', method: RequestMethod.GET }],
+   app.setGlobalPrefix('api/v1', {
+     exclude: [
+      { path: '/', method: RequestMethod.GET }, 
+      { path: 'queues', method: RequestMethod.ALL }, 
+      { path: 'queues/(.*)', method: RequestMethod.ALL },
+    ],
   });
 
   // Swagger setup

@@ -25,6 +25,8 @@ export const Env = {
   PORT: envVars.PORT,
   BASE_URL: envVars.BASE_URL,
   DB_URL: envVars.DB_URL,
+  REDIS_HOST: envVars.REDIS_HOST,
+  REDIS_PORT: envVars.REDIS_PORT,
 
   AUTO_WIDEN_ON_TYPE_ERRORS: /^true$/i.test(String(envVars.AUTO_WIDEN_ON_TYPE_ERRORS)),
 

@@ -15,13 +15,17 @@ import { InjesterEngineCore } from 'src/infra/core/injester-engine.core';
 import { PaginationParamsSetup } from 'src/infra/dto/pagination-params.dto';
 import { JsonCatalog, JsonCatalogDocument } from './entities/json-catalog.entity';
 import { RecordFilterBuilder } from './helpers/record-filter.builder';
+import { queuePool } from 'src/infra/queues/bull-board-queue';
+import { Queue } from 'bull';
+import { InjectQueue } from '@nestjs/bull';
 
 @Injectable()
 export class RecordService extends BaseService<JsonData> {
-  private readonly ajv = new Ajv({ allErrors: true, coerceTypes: false,  allowUnionTypes: true, });
-  private AUTO_WIDEN_ON_TYPE_ERRORS = Env.PORT
-  private SOURCE_URLS = Env.SOURCE_URLS
+  private readonly ajv = new Ajv({ allErrors: true, coerceTypes: false, allowUnionTypes: true });
+  private AUTO_WIDEN_ON_TYPE_ERRORS = Env.PORT;
+  private SOURCE_URLS = Env.SOURCE_URLS;
   private readonly filterBuilder: RecordFilterBuilder;
+  private static isSyncInProgress = false;
 
   constructor(
     @InjectModel(JsonData.name)
@@ -31,12 +35,16 @@ export class RecordService extends BaseService<JsonData> {
     private readonly jsonCatalogModel: Model<JsonCatalogDocument>,
     private readonly engine: InjesterEngineCore,
     private readonly http: HttpService,
+
+    @InjectQueue('record-queue')
+    private readonly recordQueue: Queue,
   ) {
     super(jsonDataModel as any);
     this.filterBuilder = new RecordFilterBuilder(this.jsonCatalogModel);
+    queuePool.add(recordQueue);
   }
 
-   async findSources(): Promise<string[]> {
+  async findSources(): Promise<string[]> {
     return await this.jsonCatalogModel.distinct('source');
   }
 
@@ -44,10 +52,7 @@ export class RecordService extends BaseService<JsonData> {
     const filter = await this.filterBuilder.buildMongoFilter(req.query as any);
 
     // Sorting (default newest first)
-    const sortField =
-      params.sortBy && params.sortBy !== 'ingestedAt'
-        ? `normalizedPayload.${params.sortBy}`
-        : 'ingestedAt';
+    const sortField = params.sortBy && params.sortBy !== 'ingestedAt' ? `normalizedPayload.${params.sortBy}` : 'ingestedAt';
     const sortDir: 1 | -1 = (params.sortDir ?? 'desc') === 'asc' ? 1 : -1;
     const sort: Record<string, 1 | -1> = { [sortField]: sortDir };
 
@@ -56,7 +61,7 @@ export class RecordService extends BaseService<JsonData> {
     if (params.fields) {
       projection = params.fields
         .split(',')
-        .map(s => s.trim())
+        .map((s) => s.trim())
         .filter(Boolean)
         .reduce((acc, key) => {
           if (['ingestedAt', '_id', 'source', 'catalogVersion'].includes(key)) acc[key] = 1;
@@ -74,7 +79,7 @@ export class RecordService extends BaseService<JsonData> {
     const perPage = Math.min(200, Math.max(1, Number(params.perPage ?? 50)));
 
     const total = await this.jsonDataModel.countDocuments(filter);
-    PaginationParamsSetup(req, total); 
+    PaginationParamsSetup(req, total);
 
     const data = await this.jsonDataModel
       .find(filter, projection)
@@ -85,36 +90,48 @@ export class RecordService extends BaseService<JsonData> {
 
     return { page, perPage, total, data };
   }
+  async initiateSyncProcess() {
+    if (RecordService.isSyncInProgress) return;
+    RecordService.isSyncInProgress = true;
+    console.log(`[${new Date().toLocaleString()}]: Initiating sync...`);
+    await Promise.all(this.SOURCE_URLS.map((url) => this.recordQueue.add('sync-source', { url })));
 
-  async syncRecords(): Promise<Record<string, { processed: number; failed: number }>> {
-    const summary: Record<string, { processed: number; failed: number }> = {};
+    RecordService.isSyncInProgress = false;
+    console.log(`[${new Date().toLocaleString()}]: Sync initiated...`);
+    return true;
+  }
 
-    for (const url of this.SOURCE_URLS) {
-      const source = await this.engine.getSourceFromUrl(url);
-      summary[source] = { processed: 0, failed: 0 };
+  async syncSourceToJobs(url: string) {
+    const source = await this.engine.getSourceFromUrl(url);
+    const resp = await lastValueFrom(this.http.get(url, { responseType: 'stream' }));
+    const jsonStream = resp.data.pipe(parser()).pipe(streamArray());
 
-      // Fetch as a stream via @nestjs/axios
-      const resp = await lastValueFrom(this.http.get(url, { responseType: 'stream' }));
+    const BATCH_SIZE = 500;
+    const jobOpts = {
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 1000 },
+      removeOnComplete: 500,
+      removeOnFail: false,
+    };
 
-      // Parse top-level JSON array and iterate items
-      const jsonStream = resp.data.pipe(parser()).pipe(streamArray());
+    let batch: Array<{ name: string; data: any; opts: typeof jobOpts }> = [];
 
-      for await (const { value: item } of jsonStream) {
-        try {
-          await this.ingestRecord(source, item);
-          summary[source].processed += 1;
-        } catch (err) {
-          summary[source].failed += 1;
-          console.warn?.(`Ingest failed for ${source}: ${err?.message || err}`);
-        }
-      }
+    const flush = async () => {
+      if (!batch.length) return;
+      await this.recordQueue.addBulk(batch);
+      batch = [];
+    };
+
+    for await (const { value: item } of jsonStream) {
+      batch.push({ name: 'ingest-one', data: { source, item }, opts: jobOpts });
+      if (batch.length >= BATCH_SIZE) await flush();
     }
+    await flush();
 
-    return summary;
+    return { enqueued: true, source };
   }
 
   async ingestRecord(source: string, originalPayload: Record<string, any>) {
-
     // 1) Get or create initial catalog
     let catalog = await this.engine.getLatestCatalog(source);
     if (!catalog) {
@@ -180,6 +197,5 @@ export class RecordService extends BaseService<JsonData> {
       originalPayload,
       normalizedPayload,
     });
-    
   }
 }

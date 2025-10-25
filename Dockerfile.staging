@@ -6,7 +6,7 @@ WORKDIR /injester-service
 COPY package*.json yarn.lock ./
 
 # Install all dependencies (needed for build)
-RUN yarn install
+RUN npm install --legacy-peer-deps
 
 # Copy source code
 COPY . .
@@ -15,7 +15,7 @@ COPY . .
 RUN yarn build
 
 #Remove dev dependencies to reduce image size
-RUN yarn install --production --frozen-lockfile
+RUN npm install --legacy-peer-deps --production --frozen-lockfile
 
 # Expose port
 EXPOSE 7100

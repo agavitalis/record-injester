@@ -66,11 +66,30 @@ services:
         condition: service_healthy 
     networks:
       - app-network
+  
+  redis:
+    image: redis:7.2
+    container_name: redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
 volumes:
   mongodb_data:
     driver: local
   mongodb_config:
+    driver: local
+  redis_data:
     driver: local
 
 networks:

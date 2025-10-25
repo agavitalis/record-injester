@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { JsonCatalog, JsonCatalogDocument } from 'src/record/entities/json-catalog.entity';
-import { JsonData, JsonDataDocument } from 'src/record/entities/json-data.entity';
+import { JsonCatalog, JsonCatalogDocument } from 'src/modules/record/entities/json-catalog.entity';
+import { JsonData, JsonDataDocument } from 'src/modules/record/entities/json-data.entity';
 
 export type IndexPolicy = Array<{ keys: Record<string, 1 | -1>; opts?: Record<string, any> }>;
 

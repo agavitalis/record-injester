@@ -1,4 +1,4 @@
-## 🧩 JSON Data Ingestion & Unified Query Service
+##  JSON Data Ingestion & Unified Query Service
 
 A scalable, schema-adaptive backend built with **NestJS** and
 **MongoDB** for ingesting, versioning, and querying large external JSON
@@ -6,7 +6,7 @@ datasets from multiple sources.
 
 ------------------------------------------------------------------------
 
-## 🚀 Overview
+##  Overview
 
 This service ingests multiple external datasets stored in **AWS S3**,
 normalizes them into a unified schema, and exposes a single query API
@@ -18,7 +18,7 @@ indexes without manual migrations.
 
 ------------------------------------------------------------------------
 
-## 🧱 Core Architecture
+##  Core Architecture
 
 ### **1. Data Ingestion & Schema Evolution**
 
@@ -53,7 +53,7 @@ indexes without manual migrations.
 
 ------------------------------------------------------------------------
 
-## 🧩 Data Model Summary
+##  Data Model Summary
 
 ### **JsonCatalog**
 
@@ -76,7 +76,7 @@ indexes without manual migrations.
 
 ------------------------------------------------------------------------
 
-## 🧠 Intelligent Schema Management
+## Intelligent Schema Management
 
 -   **Type drift detection:** If a field changes from `number` →
     `string`, the system widens the schema (`["number", "string"]`) and
@@ -88,7 +88,7 @@ indexes without manual migrations.
 
 ------------------------------------------------------------------------
 
-## 🌐 S3 Sources
+## S3 Sources
 
 The system automatically consumes the provided datasets:
 
@@ -104,7 +104,7 @@ function, ensuring constant memory usage.
 
 ------------------------------------------------------------------------
 
-## 🧩 Technologies
+## Technologies
 
   Layer              Tech Stack
   ------------------ -----------------------------------
@@ -114,39 +114,46 @@ function, ensuring constant memory usage.
   JSON Streaming     **stream-json**
   Validation         **AJV**
   Containerization   Docker-ready
-  Testing            Jest (optional)
 
 ------------------------------------------------------------------------
 
-## 🔍 Example API
+##  Documentation
 
-### **Sync JSON Sources**
+### **Swagger Docs**
 
 ``` bash
-POST /records/sync
+http://localhost:7100/docs
 ```
 
 Triggers ingestion of all configured source URLs.
 
-### **Query Records**
+### **Queue Dashboard**
 
 ``` bash
-GET /records?city=Paris&priceForNight[gte]=500&availability=true
+http://localhost:7100/queues
 ```
-
-Fetches normalized data from all datasets with attribute filters.
 
 ------------------------------------------------------------------------
 
-## ⚙️ Running Locally
+## Running the Application
 
-## Installation
+You can run the app in 3 ways:
+
+1. Without Docker
+2. Using Docker as an image
+3. Using Docker Compose (Recommended)
+
+
+## 1. Running Locally without Docker
+Ensure you configure the application ENV variables correctly, then install the application dependencies using the command:
+
+### Installation
 
 ```bash
 $ npm install --legacy-peer-deps  
 ```
 
-## Running the app
+### Start the application using the commands below:
 
 ```bash
 # development
@@ -159,22 +166,104 @@ $ npm run start:dev
 $ npm run start:prod
 ```
 
-## Test
+## 2. Running the app (Using Docker as an image)
+
+Build the application docker image using the command:
+
+### Build for staging linux/amd64 platform
+```bash
+docker build --build-arg BUILD_ENV=staging --platform linux/amd64 -f Dockerfile.staging -t vivvaa/injester-service-service:staging .
+```
+
+### Build for production linux/amd64 platform
+```bash
+docker build --build-arg BUILD_ENV=production --platform linux/amd64 -f Dockerfile.production -t vivvaa/injester-service-service:production .
+```
+
+### Start the application using:
+```bash
+docker run -p 7100:7100 --platform linux/amd64 vivvaa/injester-service:staging
+```
+or
+```bash
+docker run -p 7100:7100 --platform linux/amd64 vivvaa/injester-service:production
+```
+
+
+### 3. Running the app (Using Docker Compose -- Recommended)
+
+This is the default configuration of this application. The only thing you need to do is to ensure you copied the contents of `.env.example` file to `.env` file. Then proceed to build the application docker image using the command:
 
 ```bash
-# unit tests
-$ npm run test
+docker compose build
+```
 
-# e2e tests
-$ npm run test:e2e
+Run the app using:
 
-# test coverage
-$ npm run test:cov
+```bash
+docker compose up 
+```
+
+You can also run in detached mood using:
+
+```bash
+docker compose up -d
+```
+
+To quit and delete use the command:
+
+```bash
+docker compose down
+```
+
+You can access the app while running via docker use the following URLs:
+- Swagger Docs http://localhost:7100/docs
+- Queue UI http://localhost:7100/queues
+- Health Checks http://localhost:7100/api/v1/health
+
+## Pushing to Dockerhub 
+Build the application docker image using the command if you have not done so:
+
+### Build for staging linux/amd64 platform
+docker build --build-arg BUILD_ENV=staging --platform linux/amd64 -f Dockerfile.staging -t vivvaa/injester-service:staging .
+
+### Build for production linux/amd64 platform
+docker build --build-arg BUILD_ENV=production --platform linux/amd64 -f Dockerfile.production -t vivvaa/injester-service:production .
+
+
+### Push the image
+docker push vivvaa/injester-service:staging
+docker push vivvaa/injester-service:production
+
+
+## Docker Basic Debugging
+Verify that your docker container is running using the command:
+
+```bash
+docker container ps
+```
+
+To view docker container logs use the command:
+
+```bash
+docker logs <container_id>
+```
+
+To delete a docker container use the command:
+
+```bash
+docker stop <container_id>
+```
+
+To delete a docker container use the command:
+
+```bash
+docker rm <container_id>
 ```
 
 ------------------------------------------------------------------------
 
-## 📈 Scalability & Extensibility
+## Scalability & Extensibility
 
   -----------------------------------------------------------------------
   Concern                           Approach
@@ -197,17 +286,17 @@ $ npm run test:cov
 
 ------------------------------------------------------------------------
 
-## 🧩 How to Extend
+##  How to Extend
 
 To support a new JSON dataset: 1. Add the new S3 URL to the
-`SOURCE_URLS` array. 2. Run `syncRecords()` (or hit `/records/sync`). 3.
+`SOURCE_URLS` array in the env file. 2. Run `initiateSyncProcess()` (or hit `/records/injestManual`). 3.
 The service automatically: - Creates an initial catalog for the new
 source, - Detects structure and generates indexes, - Begins ingesting
 data under the correct schema version.
 
 ------------------------------------------------------------------------
 
-## 🧭 Key Evaluation Goals
+##  Key Evaluation Goals
 
 ✅ **Architecture:** Modular NestJS design with schema registry and
 streaming ingestion\
@@ -218,24 +307,40 @@ streaming ingestion\
 
 ------------------------------------------------------------------------
 
-## 📦 Directory Structure
+##  Directory Structure
 
     src/
-    ├── core/
-    │   └── catalog-engine.service.ts
+    ├── common/
+    ├── infra/
     ├── modules/
-    │   └── records/
+    │   └── record/
     │       ├── entities/
-    │       │   ├── json-catalog.entity.ts
-    │       │   └── json-data.entity.ts
-    │       ├── record.service.ts
-    │       └── record.controller.ts
+    │       ├── dto/
+    │       ├── helpers/
     └── main.ts
 
 ------------------------------------------------------------------------
 
-## 🧑‍💻 Author
+## Contributing
 
-**Vitalis Ogbonna**\
-Senior Software & DevOps Engineer\
-*Tech Assessment --- Senior Backend Role*
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Ensure all tests pass
+5. Submit a pull request
+
+## Support
+
+For issues and questions:
+- Create an issue in the repository
+- Email: agavitalisogbonna@gmail.com
+
+## License
+
+This project is licensed under the [Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0)](https://creativecommons.org/licenses/by-nc/4.0/).
+You may **use, share, and adapt** this software for **non-commercial purposes** only. For commercial use, please contact the author for permission.
+
+---
+
+**Author**: [Ogbonna Vitalis](mailto:agavitalisogbonna@gmail.com)  
+**Version**: 1.0.0

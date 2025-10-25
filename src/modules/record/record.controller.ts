@@ -24,16 +24,17 @@ export class RecordController {
     return CustomResponse(res, 200, 'Sources successfully retrieved', sources, null);
   }
 
-  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT, {
+  @Cron(CronExpression.EVERY_12_HOURS, {
     name: 'handleSyncRecords',
     timeZone: 'Europe/Dublin',
   })
   async handleSyncRecords() {
-    await this.recordService.syncRecords();
+    await this.recordService.initiateSyncProcess();
   }
 
-   @Get('/injest')
-   async handleSyncingRecords() {
-    await this.recordService.syncRecords();
+   @Get('/injestManual')
+   async handleSyncRecordsManual(@Res() res: Response) {
+    this.recordService.initiateSyncProcess();
+    return CustomResponse(res, 200, 'Sync successfully initiated', null, null);
   }
 }
