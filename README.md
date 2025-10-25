@@ -204,7 +204,7 @@ Run the app using:
 docker compose up 
 ```
 
-You can also run in detached mood using:
+You can also run in detached mode using:
 
 ```bash
 docker compose up -d
